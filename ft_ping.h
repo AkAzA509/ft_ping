@@ -7,10 +7,12 @@
 
 #define V_MASK(x) ((x) & 1 << 1)
 #define C_MASK(x) ((x) & 1 << 2)
+#define TTL_MASK(x) ((x) & 1 << 3)
 
 typedef struct {
 	uint8_t opts;
 	size_t c_val;
+	size_t ttl_val;
 	char **addr;
 	size_t addr_cap;
 } t_params;

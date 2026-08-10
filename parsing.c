@@ -21,27 +21,35 @@ static void print_help(void)
 	fprintf(stderr, "  <destination>  DNS name or IP address\n");
 	fprintf(stderr, "  -v             verbose output\n");
 	fprintf(stderr, "  -? -h          display help list\n");
-	fprintf(stderr, "  -c <number>    stop after sending <number> paquets\n");
+	fprintf(stderr, "  -c <number>    stop after sending <number> packets\n");
+	fprintf(stderr, "  -ttl <number>  set <number> as the packet time-to-live\n");
 }
 
 static void parse_options(const char *opt, const char *next, bool *consumed)
 {
-	while(*opt) {
-		if (*opt == 'v')
-			g_params.opts |= 1 << 1;
-		else if (*opt == 'c') {
-			g_params.opts |= 1 << 2;
-			if (!next || !isdigit((unsigned char)next[0]))
-				clean_exit("ft_ping: missing value after -c option\n", 2);
-			g_params.c_val = atoi(next);
-			*consumed = true;
-		}
-		else if (*opt == '?' || *opt == 'h') {
-			print_help();
-			clean_exit("", 2);
-		}
-		opt++;
+	// while(*opt) {
+	if (*opt == 'v')
+		g_params.opts |= 1 << 1;
+	else if (*opt == 'c') {
+		g_params.opts |= 1 << 2;
+		if (!next || !isdigit((unsigned char)next[0]))
+			clean_exit("ft_ping: missing value after -c option\n", 2);
+		g_params.c_val = atoi(next);
+		*consumed = true;
 	}
+	else if (!strcmp(opt, "ttl")) {
+		g_params.opts |= 1 << 3;
+		if (!next || !isdigit((unsigned char)next[0]))
+			clean_exit("ft_ping: missing value after -ttl option\n", 2);
+		g_params.ttl_val = atoi(next);
+		*consumed = true;
+	}
+	else {
+		print_help();
+		clean_exit("", 2);
+	}
+	// 	opt++;
+	// }
 }
 
 static void parse_address(char *addr)
@@ -100,9 +108,11 @@ void parse_params(char *av[])
 	if (!g_params.addr)
 		clean_exit("ft_ping: error no destination provided\n", 2);
 
-	printf("params:\n");
-	printf("\toptions: %c %s %zu\n", V_MASK(g_params.opts) ? 'v' : ' ',
-								C_MASK(g_params.opts) ? "c =" : "",
-								C_MASK(g_params.opts) ? g_params.c_val : 0);
-	print_tab(g_params.addr);
+	// printf("params:\n");
+	// printf("\toptions: %c %s %zu %s %zu\n", V_MASK(g_params.opts) ? 'v' : ' ',
+	// 							C_MASK(g_params.opts) ? "c =" : "",
+	// 							C_MASK(g_params.opts) ? g_params.c_val : 0,
+	// 							TTL_MASK(g_params.opts) ? "ttl =" : "",
+	// 							TTL_MASK(g_params.opts) ? g_params.ttl_val : 0);
+	// print_tab(g_params.addr);
 }
