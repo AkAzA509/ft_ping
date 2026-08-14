@@ -25,6 +25,6 @@ clean:
 	@rm -rf $(OBJ_DIR)
 
 fclean: clean
-	@rm $(NAME)
+	@rm -rf $(BIN_DIR)
 
 re: fclean all

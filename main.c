@@ -25,6 +25,7 @@ t_params g_params = {
 };
 bool run = true;
 #define PING_PKT_S 64
+#define PING_DATA_S (PING_PKT_S - sizeof(struct icmphdr))
 #define PING_SLEEP_RATE 1000000
 
 void free_struct()
@@ -183,7 +184,7 @@ static void ping_loop()
 	for (size_t i = 0; g_params.addr[i]; ++i) {
 		struct sockaddr_in addr_sock;
 		char *ip = dns_resolution(g_params.addr[i], &addr_sock);
-		printf("ft_ping %s (%s): %d data bytes\n", g_params.addr[i], ip, PING_PKT_S);
+		printf("ft_ping %s (%s): %ld data bytes\n", g_params.addr[i], ip, PING_DATA_S);
 		int sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 		if (sock < 0) {
 			free(ip);
