@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdlib.h>
+#include <netinet/ip.h>
 #include <netinet/ip_icmp.h>
 #include <time.h>
 #include <fcntl.h>
@@ -142,7 +143,8 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 
 		// Receive packet
 		addr_len = sizeof(r_addr);
-		if (recvfrom(sock, rbuffer, sizeof(rbuffer), 0, (struct sockaddr*)&r_addr, &addr_len) <= 0 && msg_count > 1)
+		ssize_t recv_len = recvfrom(sock, rbuffer, sizeof(rbuffer), 0, (struct sockaddr*)&r_addr, &addr_len);
+		if (recv_len <= 0 && msg_count > 1)
 			fprintf(stderr, "\nPacket receive failed!\n");
 		else {
 			clock_gettime(CLOCK_MONOTONIC, &time_end);
@@ -150,7 +152,13 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 			double timeElapsed = ((double)(time_end.tv_nsec - time_start.tv_nsec)) / 1000000.0;
 			rtt_msec = (time_end.tv_sec - time_start.tv_sec) * 1000.0 + timeElapsed;
 		
-			struct icmphdr *recv_hdr = (struct icmphdr *)rbuffer;
+			int ip_hdr_len = (rbuffer[0] & 0x0F) * 4;
+			if (recv_len < ip_hdr_len + (ssize_t)sizeof(struct icmphdr)) {
+				fprintf(stderr, "Error... short packet received\n");
+				continue;
+			}
+
+			struct icmphdr *recv_hdr = (struct icmphdr *)(rbuffer + ip_hdr_len);
 			if (!(recv_hdr->type == 0 && recv_hdr->code == 0))
 				fprintf(stderr, "Error... Packet received with ICMP type %d code %d\n", recv_hdr->type, recv_hdr->code);
 			else {
