@@ -92,7 +92,7 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 	(void)ip;
 	(void)domain;
 
-	int msg_count = 0, i, flag = 1, msg_received_count = 0;
+	int msg_count = 0, i, msg_received_count = 0;
 	socklen_t addr_len;
 	char rbuffer[128];
 	struct packet pckt;
@@ -121,8 +121,6 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 			iteration--;
 		if (!run)
 			break;
-		flag = 1;
-
 		bzero(&pckt, sizeof(pckt));
 		pckt.hdr.type = ICMP_ECHO;
 		pckt.hdr.un.echo.id = getpid();
@@ -139,7 +137,7 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 		clock_gettime(CLOCK_MONOTONIC, &time_start);
 		if (sendto(sock, &pckt, sizeof(pckt), 0, (struct sockaddr*)addr_sock, sizeof(*addr_sock)) <= 0) {
 			fprintf(stderr, "\nPacket Sending Failed!\n");
-			flag = 0;
+			continue;
 		}
 
 		// Receive packet
@@ -152,16 +150,13 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 			double timeElapsed = ((double)(time_end.tv_nsec - time_start.tv_nsec)) / 1000000.0;
 			rtt_msec = (time_end.tv_sec - time_start.tv_sec) * 1000.0 + timeElapsed;
 		
-			// If packet was not sent, don't receive
-			if (flag) {
-				struct icmphdr *recv_hdr = (struct icmphdr *)rbuffer;
-				if (!(recv_hdr->type == 0 && recv_hdr->code == 0))
-					fprintf(stderr, "Error... Packet received with ICMP type %d code %d\n", recv_hdr->type, recv_hdr->code);
-				else {
-					printf("%d bytes from %s imcq_seq=%d ttl=%zu time=%Lf ms.\n",
-						PING_PKT_S, ip, msg_count, g_params.ttl_val, rtt_msec);
-					msg_received_count++;
-				}
+			struct icmphdr *recv_hdr = (struct icmphdr *)rbuffer;
+			if (!(recv_hdr->type == 0 && recv_hdr->code == 0))
+				fprintf(stderr, "Error... Packet received with ICMP type %d code %d\n", recv_hdr->type, recv_hdr->code);
+			else {
+				printf("%d bytes from %s imcq_seq=%d ttl=%zu time=%Lf ms.\n",
+					PING_PKT_S, ip, msg_count, g_params.ttl_val, rtt_msec);
+				msg_received_count++;
 			}
 		}
 	}
