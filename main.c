@@ -91,9 +91,6 @@ unsigned short checksum(void *b, int len) {
 
 static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char *domain)
 {
-	(void)ip;
-	(void)domain;
-
 	int msg_count = 0, i, msg_received_count = 0;
 	socklen_t addr_len;
 	char rbuffer[128];
@@ -174,7 +171,7 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 	double timeElapsed = ((double)(tfe.tv_nsec - tfs.tv_nsec)) / 1000000.0;
 	total_msec = (tfe.tv_sec - tfs.tv_sec) * 1000.0 + timeElapsed;
 
-	printf("\n--- %s ping statistics ---\n", ip);
+	printf("\n--- %s ping statistics ---\n", domain);
 	printf("%d packets transmitted, %d packets received, %.2f%% packet loss.\nTotal time: %Lf ms.\n",
 		msg_count, msg_received_count, ((msg_count - msg_received_count) / (double)msg_count) * 100.0, total_msec);
 }
