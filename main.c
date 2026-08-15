@@ -161,7 +161,7 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 			if (!(recv_hdr->type == 0 && recv_hdr->code == 0))
 				fprintf(stderr, "Error... Packet received with ICMP type %d code %d\n", recv_hdr->type, recv_hdr->code);
 			else {
-				printf("%d bytes from %s imcq_seq=%d ttl=%zu time=%Lf ms.\n",
+				printf("%d bytes from %s imcp_seq=%d ttl=%zu time=%Lf ms.\n",
 					PING_PKT_S, ip, msg_count, (size_t)reply_ttl, rtt_msec);
 				msg_received_count++;
 			}
