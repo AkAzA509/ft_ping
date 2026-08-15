@@ -14,6 +14,8 @@
 #include <time.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <float.h>
+#include <math.h>
 #include "ft_ping.h"
 
 t_params g_params = {
@@ -89,20 +91,55 @@ unsigned short checksum(void *b, int len) {
 	return result;
 }
 
+static void receive_packet(int sock, int *msg_count, struct timespec time_start,
+	long double *sum_rtt_msec, long double *sum_square_rtt_msec, const char * ip,
+	long double *min, long double *max, int *msg_received_count)
+{
+	struct sockaddr_in r_addr;
+	char rbuffer[128];
+	socklen_t addr_len = sizeof(r_addr);
+	struct timespec time_end;
+	long double rtt_msec = 0;
+
+	ssize_t recv_len = recvfrom(sock, rbuffer, sizeof(rbuffer), 0, (struct sockaddr*)&r_addr, &addr_len);
+	if (recv_len <= 0 && *msg_count > 1)
+		fprintf(stderr, "\nPacket receive failed!\n");
+	else {
+		clock_gettime(CLOCK_MONOTONIC, &time_end);
+
+		double elapsed = ((double)(time_end.tv_nsec - time_start.tv_nsec)) / 1000000.0;
+		rtt_msec = (time_end.tv_sec - time_start.tv_sec) * 1000.0 + elapsed;
+		*sum_rtt_msec += rtt_msec;
+		*sum_square_rtt_msec += rtt_msec * rtt_msec;
+		int ip_hdr_len = (rbuffer[0] & 0x0F) * 4;
+		if (recv_len < ip_hdr_len + (ssize_t)sizeof(struct icmphdr)) {
+			fprintf(stderr, "Error... short packet received\n");
+			return;
+		}
+
+		unsigned char reply_ttl = (unsigned char)rbuffer[8];
+		struct icmphdr *recv_hdr = (struct icmphdr *)(rbuffer + ip_hdr_len);
+		if (!(recv_hdr->type == 0 && recv_hdr->code == 0))
+			fprintf(stderr, "Error... Packet received with ICMP type %d code %d\n", recv_hdr->type, recv_hdr->code);
+		else {
+			printf("%d bytes from %s imcp_seq=%d ttl=%zu time=%.2Lf ms.\n",
+				PING_PKT_S, ip, *msg_count, (size_t)reply_ttl, rtt_msec);
+			*msg_received_count += 1;
+			*max = rtt_msec > *max ? rtt_msec : *max;
+			*min = rtt_msec < *min ? rtt_msec : *min;
+		}
+	}
+}
+
 static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char *domain)
 {
 	int msg_count = 0, i, msg_received_count = 0;
-	socklen_t addr_len;
-	char rbuffer[128];
 	struct packet pckt;
-	struct sockaddr_in r_addr;
-	struct timespec time_start, time_end, tfs, tfe;
-	long double rtt_msec = 0, total_msec = 0;
+	struct timespec time_start;
+	long double sum_rtt_msec = 0, sum_square_rtt_msec = 0, max = LDBL_MIN, min = LDBL_MAX, stddev = 0;
 	struct timeval tv_out;
 	tv_out.tv_sec = 1;
 	tv_out.tv_usec = 0;
-
-	clock_gettime(CLOCK_MONOTONIC, &tfs);
 
 	// Set socket options at IP to TTL and value to 64
 	if (setsockopt(sock, SOL_IP, IP_TTL, &g_params.ttl_val, sizeof(g_params.ttl_val)) != 0) {
@@ -123,10 +160,10 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 		bzero(&pckt, sizeof(pckt));
 		pckt.hdr.type = ICMP_ECHO;
 		pckt.hdr.un.echo.id = getpid();
-		
+
 		for (i = 0; (long unsigned int)i < sizeof(pckt.msg) - 1; i++)
 			pckt.msg[i] = i + '0';
-		
+
 		pckt.msg[i] = 0;
 		pckt.hdr.un.echo.sequence = msg_count++;
 		pckt.hdr.checksum = checksum(&pckt, sizeof(pckt));
@@ -138,42 +175,16 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 			fprintf(stderr, "\nPacket Sending Failed!\n");
 			continue;
 		}
-
 		// Receive packet
-		addr_len = sizeof(r_addr);
-		ssize_t recv_len = recvfrom(sock, rbuffer, sizeof(rbuffer), 0, (struct sockaddr*)&r_addr, &addr_len);
-		if (recv_len <= 0 && msg_count > 1)
-			fprintf(stderr, "\nPacket receive failed!\n");
-		else {
-			clock_gettime(CLOCK_MONOTONIC, &time_end);
-		
-			double timeElapsed = ((double)(time_end.tv_nsec - time_start.tv_nsec)) / 1000000.0;
-			rtt_msec = (time_end.tv_sec - time_start.tv_sec) * 1000.0 + timeElapsed;
-		
-			int ip_hdr_len = (rbuffer[0] & 0x0F) * 4;
-			if (recv_len < ip_hdr_len + (ssize_t)sizeof(struct icmphdr)) {
-				fprintf(stderr, "Error... short packet received\n");
-				continue;
-			}
-
-			unsigned char reply_ttl = (unsigned char)rbuffer[8];
-			struct icmphdr *recv_hdr = (struct icmphdr *)(rbuffer + ip_hdr_len);
-			if (!(recv_hdr->type == 0 && recv_hdr->code == 0))
-				fprintf(stderr, "Error... Packet received with ICMP type %d code %d\n", recv_hdr->type, recv_hdr->code);
-			else {
-				printf("%d bytes from %s imcp_seq=%d ttl=%zu time=%Lf ms.\n",
-					PING_PKT_S, ip, msg_count, (size_t)reply_ttl, rtt_msec);
-				msg_received_count++;
-			}
-		}
+		receive_packet(sock, &msg_count, time_start, &sum_rtt_msec, &sum_square_rtt_msec, ip, &min, &max, &msg_received_count);
 	}
-	clock_gettime(CLOCK_MONOTONIC, &tfe);
-	double timeElapsed = ((double)(tfe.tv_nsec - tfs.tv_nsec)) / 1000000.0;
-	total_msec = (tfe.tv_sec - tfs.tv_sec) * 1000.0 + timeElapsed;
-
+	long double avg_rtt = msg_received_count > 0 ? sum_rtt_msec / msg_received_count : 0.0L;
+	stddev = sqrtl((sum_square_rtt_msec / msg_received_count) - (avg_rtt * avg_rtt));
 	printf("\n--- %s ping statistics ---\n", domain);
-	printf("%d packets transmitted, %d packets received, %.2f%% packet loss.\nTotal time: %Lf ms.\n",
-		msg_count, msg_received_count, ((msg_count - msg_received_count) / (double)msg_count) * 100.0, total_msec);
+	printf("%d packets transmitted, %d packets received, %.2f%% packet loss.\n",
+		msg_count, msg_received_count, ((msg_count - msg_received_count) / (double)msg_count) * 100.0);
+	printf("round-trip min/avg/max/stddev = %.2Lf/%.2Lf/%.2Lf/%.2Lf\n", min, avg_rtt, max, stddev);
+	return;
 }
 
 static void ping_loop()

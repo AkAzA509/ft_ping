@@ -15,16 +15,16 @@ all: $(NAME)
 
 $(NAME): $(OBJ)
 	@mkdir -p $(BIN_DIR)
-	$(CXX) $(CFLAGS) -o $(NAME) $(OBJ)
+	$(CXX) $(CFLAGS) -lm -o $(NAME) $(OBJ)
 
 $(OBJ_DIR)%.o: %.c
 	@mkdir -p $(dir $@)
 	$(CXX) $(CFLAGS) -c $< -o $@
 
 clean:
-	@rm -rf $(OBJ_DIR)
+	rm -rf $(OBJ_DIR)
 
 fclean: clean
-	@rm -rf $(BIN_DIR)
+	rm -rf $(BIN_DIR)
 
 re: fclean all
