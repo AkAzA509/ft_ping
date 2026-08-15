@@ -192,7 +192,13 @@ static void ping_loop()
 	for (size_t i = 0; g_params.addr[i]; ++i) {
 		struct sockaddr_in addr_sock;
 		char *ip = dns_resolution(g_params.addr[i], &addr_sock);
-		printf("ft_ping %s (%s): %ld data bytes\n", g_params.addr[i], ip, PING_DATA_S);
+		if (V_MASK(g_params.opts)) {
+			unsigned short id = (unsigned short)getpid();
+			printf("PING %s (%s): %ld data bytes, id 0x%04x = %u\n",
+				g_params.addr[i], ip, PING_DATA_S, id, id);
+		} else {
+			printf("ft_ping %s (%s): %ld data bytes\n", g_params.addr[i], ip, PING_DATA_S);
+		}
 		int sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 		if (sock < 0) {
 			free(ip);
