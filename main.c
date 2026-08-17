@@ -133,15 +133,15 @@ static void receive_packet(int sock, int *msg_count, struct timespec time_start,
 
 static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char *domain)
 {
-	int msg_count = 0, i, msg_received_count = 0;
-	struct packet pckt;
-	struct timespec time_start;
 	long double sum_rtt_msec = 0, sum_square_rtt_msec = 0, max = LDBL_MIN, min = LDBL_MAX, stddev = 0;
+	int msg_count = 0, i, msg_received_count = 0;
+	struct timespec time_start;
 	struct timeval tv_out;
-	tv_out.tv_sec = 1;
+	struct packet pckt;
 	tv_out.tv_usec = 0;
+	tv_out.tv_sec = 1;
 
-	// Set socket options at IP to TTL and value to 64
+	// Set socket options at IP to TTL
 	if (setsockopt(sock, SOL_IP, IP_TTL, &g_params.ttl_val, sizeof(g_params.ttl_val)) != 0) {
 		fprintf(stderr, "\nSetting socket options to TTL failed!\n");
 		return;
@@ -157,6 +157,7 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 			iteration--;
 		if (!run)
 			break;
+
 		bzero(&pckt, sizeof(pckt));
 		pckt.hdr.type = ICMP_ECHO;
 		pckt.hdr.un.echo.id = getpid();
@@ -183,22 +184,22 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 	printf("\n--- %s ping statistics ---\n", domain);
 	printf("%d packets transmitted, %d packets received, %.2f%% packet loss.\n",
 		msg_count, msg_received_count, ((msg_count - msg_received_count) / (double)msg_count) * 100.0);
-	printf("round-trip min/avg/max/stddev = %.2Lf/%.2Lf/%.2Lf/%.2Lf\n", min, avg_rtt, max, stddev);
+	printf("round-trip min/avg/max/stddev = %.2Lf/%.2Lf/%.2Lf/%.2Lf ms\n", min, avg_rtt, max, stddev);
 	return;
 }
 
 static void ping_loop()
 {
-	for (size_t i = 0; g_params.addr[i]; ++i) {
+	for (size_t i = 0; g_params.addr[i] && run; ++i) {
 		struct sockaddr_in addr_sock;
 		char *ip = dns_resolution(g_params.addr[i], &addr_sock);
 		if (V_MASK(g_params.opts)) {
 			unsigned short id = (unsigned short)getpid();
 			printf("PING %s (%s): %ld data bytes, id 0x%04x = %u\n",
 				g_params.addr[i], ip, PING_DATA_S, id, id);
-		} else {
-			printf("ft_ping %s (%s): %ld data bytes\n", g_params.addr[i], ip, PING_DATA_S);
 		}
+		else
+			printf("ft_ping %s (%s): %ld data bytes\n", g_params.addr[i], ip, PING_DATA_S);
 		int sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 		if (sock < 0) {
 			free(ip);
