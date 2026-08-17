@@ -15,7 +15,7 @@ all: $(NAME)
 
 $(NAME): $(OBJ)
 	@mkdir -p $(BIN_DIR)
-	$(CXX) $(CFLAGS) -lm -o $(NAME) $(OBJ)
+	$(CXX) $(CFLAGS) -o $(NAME) $(OBJ) -lm
 
 $(OBJ_DIR)%.o: %.c
 	@mkdir -p $(dir $@)

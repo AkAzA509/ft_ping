@@ -91,7 +91,7 @@ unsigned short checksum(void *b, int len) {
 	return result;
 }
 
-static void receive_packet(int sock, int *msg_count, struct timespec time_start,
+static void receive_packet(int sock, int expected_seq, struct timespec time_start,
 	long double *sum_rtt_msec, long double *sum_square_rtt_msec, const char * ip,
 	long double *min, long double *max, int *msg_received_count)
 {
@@ -101,33 +101,41 @@ static void receive_packet(int sock, int *msg_count, struct timespec time_start,
 	struct timespec time_end;
 	long double rtt_msec = 0;
 
-	ssize_t recv_len = recvfrom(sock, rbuffer, sizeof(rbuffer), 0, (struct sockaddr*)&r_addr, &addr_len);
-	if (recv_len <= 0 && *msg_count > 1)
-		fprintf(stderr, "\nPacket receive failed!\n");
-	else {
-		clock_gettime(CLOCK_MONOTONIC, &time_end);
-
-		double elapsed = ((double)(time_end.tv_nsec - time_start.tv_nsec)) / 1000000.0;
-		rtt_msec = (time_end.tv_sec - time_start.tv_sec) * 1000.0 + elapsed;
-		*sum_rtt_msec += rtt_msec;
-		*sum_square_rtt_msec += rtt_msec * rtt_msec;
-		int ip_hdr_len = (rbuffer[0] & 0x0F) * 4;
-		if (recv_len < ip_hdr_len + (ssize_t)sizeof(struct icmphdr)) {
-			fprintf(stderr, "Error... short packet received\n");
+	while (1) {
+		ssize_t recv_len = recvfrom(sock, rbuffer, sizeof(rbuffer), 0, (struct sockaddr*)&r_addr, &addr_len);
+		if (recv_len <= 0) {
+			fprintf(stderr, BLD_RED"\nPacket receive failed!\n"RESET);
 			return;
 		}
 
-		unsigned char reply_ttl = (unsigned char)rbuffer[8];
-		struct icmphdr *recv_hdr = (struct icmphdr *)(rbuffer + ip_hdr_len);
-		if (!(recv_hdr->type == 0 && recv_hdr->code == 0))
-			fprintf(stderr, "Error... Packet received with ICMP type %d code %d\n", recv_hdr->type, recv_hdr->code);
-		else {
-			printf("%d bytes from %s imcp_seq=%d ttl=%zu time=%.2Lf ms.\n",
-				PING_PKT_S, ip, *msg_count, (size_t)reply_ttl, rtt_msec);
-			*msg_received_count += 1;
-			*max = rtt_msec > *max ? rtt_msec : *max;
-			*min = rtt_msec < *min ? rtt_msec : *min;
+		int ip_hdr_len = (rbuffer[0] & 0x0F) * 4;
+		if (recv_len < ip_hdr_len + (ssize_t)sizeof(struct icmphdr)) {
+			fprintf(stderr, BLD_RED"Error... short packet received\n"RESET);
+			return;
 		}
+		struct icmphdr *recv_hdr = (struct icmphdr *)(rbuffer + ip_hdr_len);
+		unsigned short recv_id = ntohs(recv_hdr->un.echo.id);
+		unsigned short recv_seq = ntohs(recv_hdr->un.echo.sequence);
+		if (recv_hdr->type == ICMP_ECHO && recv_id == (unsigned short)getpid())
+			continue;
+		if (recv_hdr->type != ICMP_ECHOREPLY || recv_id != (unsigned short)getpid())
+			continue;
+		if (recv_seq != (unsigned short)expected_seq)
+			continue;
+
+		clock_gettime(CLOCK_MONOTONIC, &time_end);
+		unsigned char reply_ttl = (unsigned char)rbuffer[8];
+		double elapsed = ((double)(time_end.tv_nsec - time_start.tv_nsec)) / 1000000.0;
+		rtt_msec = (time_end.tv_sec - time_start.tv_sec) * 1000.0 + elapsed;
+
+		*sum_rtt_msec += rtt_msec;
+		*sum_square_rtt_msec += rtt_msec * rtt_msec;
+		printf(BLD_WHITE"%d bytes from %s imcp_seq=%d ttl=%zu time=%.2Lf ms.\n"RESET,
+			PING_PKT_S, ip, recv_seq, (size_t)reply_ttl, rtt_msec);
+		*msg_received_count += 1;
+		*max = rtt_msec > *max ? rtt_msec : *max;
+		*min = rtt_msec < *min ? rtt_msec : *min;
+		return;
 	}
 }
 
@@ -143,7 +151,7 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 
 	// Set socket options at IP to TTL
 	if (setsockopt(sock, SOL_IP, IP_TTL, &g_params.ttl_val, sizeof(g_params.ttl_val)) != 0) {
-		fprintf(stderr, "\nSetting socket options to TTL failed!\n");
+		fprintf(stderr, BLD_RED"\nSetting socket options to TTL failed!\n"RESET);
 		return;
 	}
 
@@ -160,31 +168,37 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *ip, char 
 
 		bzero(&pckt, sizeof(pckt));
 		pckt.hdr.type = ICMP_ECHO;
-		pckt.hdr.un.echo.id = getpid();
+		pckt.hdr.un.echo.id = htons((unsigned short)getpid());
 
 		for (i = 0; (long unsigned int)i < sizeof(pckt.msg) - 1; i++)
 			pckt.msg[i] = i + '0';
 
 		pckt.msg[i] = 0;
-		pckt.hdr.un.echo.sequence = msg_count++;
+		pckt.hdr.un.echo.sequence = htons((unsigned short)msg_count);
 		pckt.hdr.checksum = checksum(&pckt, sizeof(pckt));
 
 		usleep(PING_SLEEP_RATE);
 		// Send packet
 		clock_gettime(CLOCK_MONOTONIC, &time_start);
 		if (sendto(sock, &pckt, sizeof(pckt), 0, (struct sockaddr*)addr_sock, sizeof(*addr_sock)) <= 0) {
-			fprintf(stderr, "\nPacket Sending Failed!\n");
+			fprintf(stderr, BLD_RED"\nPacket Sending Failed!\n"RESET);
 			continue;
 		}
-		// Receive packet
-		receive_packet(sock, &msg_count, time_start, &sum_rtt_msec, &sum_square_rtt_msec, ip, &min, &max, &msg_received_count);
+		receive_packet(sock, msg_count, time_start, &sum_rtt_msec, &sum_square_rtt_msec, ip, &min, &max, &msg_received_count);
+		msg_count++;
 	}
 	long double avg_rtt = msg_received_count > 0 ? sum_rtt_msec / msg_received_count : 0.0L;
-	stddev = sqrtl((sum_square_rtt_msec / msg_received_count) - (avg_rtt * avg_rtt));
-	printf("\n--- %s ping statistics ---\n", domain);
+	if (msg_received_count == 0) {
+		min = 0.0L;
+		max = 0.0L;
+		stddev = 0.0L;
+	}
+	else
+		stddev = sqrtl((sum_square_rtt_msec / msg_received_count) - (avg_rtt * avg_rtt));
+	printf(BLD_BLUE"\n--- %s ping statistics ---\n", domain);
 	printf("%d packets transmitted, %d packets received, %.2f%% packet loss.\n",
 		msg_count, msg_received_count, ((msg_count - msg_received_count) / (double)msg_count) * 100.0);
-	printf("round-trip min/avg/max/stddev = %.2Lf/%.2Lf/%.2Lf/%.2Lf ms\n", min, avg_rtt, max, stddev);
+	printf("round-trip min/avg/max/stddev = %.2Lf/%.2Lf/%.2Lf/%.2Lf ms\n\n"RESET, min, avg_rtt, max, stddev);
 	return;
 }
 
@@ -195,15 +209,15 @@ static void ping_loop()
 		char *ip = dns_resolution(g_params.addr[i], &addr_sock);
 		if (V_MASK(g_params.opts)) {
 			unsigned short id = (unsigned short)getpid();
-			printf("PING %s (%s): %ld data bytes, id 0x%04x = %u\n",
+			printf(BLD_GREEN"FT_PING %s (%s): %ld data bytes, id 0x%04x = %u\n"RESET,
 				g_params.addr[i], ip, PING_DATA_S, id, id);
 		}
 		else
-			printf("ft_ping %s (%s): %ld data bytes\n", g_params.addr[i], ip, PING_DATA_S);
+			printf(BLD_GREEN"FT_PING %s (%s): %ld data bytes\n"RESET, g_params.addr[i], ip, PING_DATA_S);
 		int sock = socket(AF_INET, SOCK_RAW, IPPROTO_ICMP);
 		if (sock < 0) {
 			free(ip);
-			fprintf(stderr, "ft_ping: error creation socket\n");
+			fprintf(stderr, BLD_RED"ft_ping: error creation socket\n"RESET);
 			continue;
 		}
 		send_packet(sock, &addr_sock, ip, g_params.addr[i]);
