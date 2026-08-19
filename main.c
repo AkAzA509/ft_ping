@@ -1,3 +1,4 @@
+#include <errno.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -171,7 +172,7 @@ static void receive_packet(int sock, int expected_seq,
 					    &addr_len);
 		if (recv_len <= 0) {
 			fprintf(stderr,
-				BLD_RED "\nPacket receive failed!\n" RESET);
+				BLD_RED "Error ... packet receive failed!\n" RESET);
 			return;
 		}
 
@@ -264,7 +265,7 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *domain)
 			   (struct sockaddr *)addr_sock,
 			   sizeof(*addr_sock)) <= 0) {
 			fprintf(stderr,
-				BLD_RED "\nPacket Sending Failed!\n" RESET);
+				BLD_RED "Error ... packet sending failed!\n" RESET);
 			continue;
 		}
 		receive_packet(sock, sequence, time_start, &sum_rtt_msec,
@@ -290,7 +291,7 @@ static int prepare_socket()
 	if (setsockopt(sock, SOL_IP, IP_TTL, &g_params.ttl_val,
 		       sizeof(g_params.ttl_val)) != 0) {
 		fprintf(stderr, BLD_RED
-			"\nSetting socket options to TTL failed!\n" RESET);
+			"Error ... setting socket options to TTL failed!\n" RESET);
 		return -1;
 	}
 
