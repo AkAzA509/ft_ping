@@ -284,7 +284,7 @@ static int prepare_socket()
 		return -1;
 
 	struct timeval tv_out = {
-		.tv_sec = 1,
+		.tv_sec = 4,
 		.tv_usec = 0,
 	};
 
