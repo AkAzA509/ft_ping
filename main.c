@@ -1,4 +1,3 @@
-#include <errno.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -96,25 +95,26 @@ unsigned short checksum(void *b, int len)
 }
 
 static int error_packet(struct sockaddr_in r_addr, int expected_seq,
-	struct icmphdr *recv_hdr, const char *msg, ssize_t recv_len, int ip_hdr_len)
+			struct icmphdr *recv_hdr, const char *msg,
+			ssize_t recv_len, int ip_hdr_len)
 {
 	unsigned char *embedded_ip =
 		(unsigned char *)recv_hdr + sizeof(struct icmphdr);
 	int embedded_ip_hdr_len = (embedded_ip[0] & 0x0F) * 4;
-	if (recv_len < ip_hdr_len + (ssize_t)sizeof(struct icmphdr) + embedded_ip_hdr_len + (ssize_t)sizeof(struct icmphdr))
+	if (recv_len < ip_hdr_len + (ssize_t)sizeof(struct icmphdr) +
+			       embedded_ip_hdr_len +
+			       (ssize_t)sizeof(struct icmphdr))
 		return -1;
 	struct icmphdr *embedded_icmp =
 		(struct icmphdr *)(embedded_ip + embedded_ip_hdr_len);
 	unsigned short orig_id = ntohs(embedded_icmp->un.echo.id);
-	unsigned short orig_seq =
-		ntohs(embedded_icmp->un.echo.sequence);
+	unsigned short orig_seq = ntohs(embedded_icmp->un.echo.sequence);
 	if (orig_id != (unsigned short)getpid() ||
 	    orig_seq != (unsigned short)expected_seq)
 		return -2;
 
-	printf(BLD_WHITE
-	       "%d bytes from %s imcp_seq=%d %s\n" RESET,
-	       PING_PKT_S, inet_ntoa(r_addr.sin_addr), orig_seq, msg);
+	printf(BLD_WHITE "%d bytes from %s imcp_seq=%d %s\n" RESET, PING_PKT_S,
+	       inet_ntoa(r_addr.sin_addr), orig_seq, msg);
 	return -1;
 }
 
@@ -133,10 +133,12 @@ static int check_packet(ssize_t recv_len, char *rbuffer, int expected_seq,
 
 	if (recv_hdr->type == ICMP_TIME_EXCEEDED)
 		return error_packet(r_addr, expected_seq, recv_hdr,
-			"Time to live exceeded", recv_len, ip_hdr_len);
+				    "Time to live exceeded", recv_len,
+				    ip_hdr_len);
 	if (recv_hdr->type == ICMP_DEST_UNREACH)
 		return error_packet(r_addr, expected_seq, recv_hdr,
-			"Destination Host Unreachable", recv_len, ip_hdr_len);
+				    "Destination Host Unreachable", recv_len,
+				    ip_hdr_len);
 
 	// filter our or misc packet
 	if ((recv_hdr->type == ICMP_ECHO &&
@@ -146,7 +148,6 @@ static int check_packet(ssize_t recv_len, char *rbuffer, int expected_seq,
 	    (*recv_seq != (unsigned short)expected_seq))
 		return -2;
 
-	// else check its integrity
 	if (checksum(recv_hdr, recv_len - ip_hdr_len) != 0) {
 		fprintf(stderr, BLD_RED
 			"Error ... packet integrity ckeck failed\n" RESET);
@@ -157,8 +158,8 @@ static int check_packet(ssize_t recv_len, char *rbuffer, int expected_seq,
 
 static void receive_packet(int sock, int expected_seq,
 			   struct timespec time_start, ldbl *sum_rtt_msec,
-			   ldbl *sum_square_rtt_msec, ldbl *min,
-			   ldbl *max, int *msg_received_count)
+			   ldbl *sum_square_rtt_msec, ldbl *min, ldbl *max,
+			   int *msg_received_count)
 {
 	struct sockaddr_in r_addr;
 	char rbuffer[128];
@@ -171,8 +172,8 @@ static void receive_packet(int sock, int expected_seq,
 					    (struct sockaddr *)&r_addr,
 					    &addr_len);
 		if (recv_len <= 0) {
-			fprintf(stderr,
-				BLD_RED "Error ... packet receive failed!\n" RESET);
+			fprintf(stderr, BLD_RED
+				"Error ... packet receive failed!\n" RESET);
 			return;
 		}
 
@@ -264,8 +265,8 @@ static void send_packet(int sock, struct sockaddr_in *addr_sock, char *domain)
 		if (sendto(sock, &pckt, sizeof(pckt), 0,
 			   (struct sockaddr *)addr_sock,
 			   sizeof(*addr_sock)) <= 0) {
-			fprintf(stderr,
-				BLD_RED "Error ... packet sending failed!\n" RESET);
+			fprintf(stderr, BLD_RED
+				"Error ... packet sending failed!\n" RESET);
 			continue;
 		}
 		receive_packet(sock, sequence, time_start, &sum_rtt_msec,
