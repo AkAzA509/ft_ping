@@ -74,7 +74,7 @@ Examples:
 ## How It Works
 
 1. Parse CLI options and destination(s).
-2. Resolve destination with DNS when needed.
+2. Resolve destination with.
 3. Build an ICMP Echo Request packet:
    - type = `ICMP_ECHO`
    - id = current process id
@@ -136,7 +136,6 @@ $$
 
 - Current implementation targets IPv4 (`sockaddr_in`).
 - DNS resolution uses `gethostbyname`.
-- Behavior may differ from system `ping` for advanced cases (ICMP errors, IPv6, flood mode, etc.).
 - Raw sockets require elevated privileges or `CAP_NET_RAW`.
 
 ## Cleaning
