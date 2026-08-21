@@ -52,7 +52,9 @@ static void parse_options(const char *opt, const char *next, bool *consumed)
 		*consumed = true;
 		int ret = atoi(next);
 		if (ret <= 0)
-			clean_exit(BLD_RED"ft_ping: options value too small\n"RESET, 1);
+			clean_exit(BLD_RED
+				   "ft_ping: options value too small\n" RESET,
+				   1);
 		g_params.ttl_val = ret;
 		g_params.opts |= 1 << 3;
 	} else {
