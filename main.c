@@ -105,10 +105,12 @@ static int error_packet(struct sockaddr_in r_addr, int expected_seq,
 			       embedded_ip_hdr_len +
 			       (ssize_t)sizeof(struct icmphdr))
 		return -1;
+
 	struct icmphdr *embedded_icmp =
 		(struct icmphdr *)(embedded_ip + embedded_ip_hdr_len);
 	unsigned short orig_id = ntohs(embedded_icmp->un.echo.id);
 	unsigned short orig_seq = ntohs(embedded_icmp->un.echo.sequence);
+
 	if (orig_id != (unsigned short)getpid() ||
 	    orig_seq != (unsigned short)expected_seq)
 		return -2;

@@ -32,23 +32,29 @@ static void parse_options(const char *opt, const char *next, bool *consumed)
 	if (*opt == 'v')
 		g_params.opts |= 1 << 1;
 	else if (*opt == 'c') {
-		g_params.opts |= 1 << 2;
 		if (!next || !isdigit((unsigned char)next[0]))
 			clean_exit(
 				BLD_RED
 				"ft_ping: missing value after -c option\n" RESET,
 				2);
-		g_params.c_val = atoi(next);
 		*consumed = true;
+		int ret = atoi(next);
+		if (ret <= 0)
+			return;
+		g_params.c_val = ret;
+		g_params.opts |= 1 << 2;
 	} else if (!strcmp(opt, "ttl")) {
-		g_params.opts |= 1 << 3;
 		if (!next || !isdigit((unsigned char)next[0]))
 			clean_exit(
 				BLD_RED
 				"ft_ping: missing value after -ttl option\n" RESET,
 				2);
-		g_params.ttl_val = atoi(next);
 		*consumed = true;
+		int ret = atoi(next);
+		if (ret <= 0)
+			clean_exit(BLD_RED"ft_ping: options value too small\n"RESET, 1);
+		g_params.ttl_val = ret;
+		g_params.opts |= 1 << 3;
 	} else {
 		print_help();
 		clean_exit("", 2);

@@ -2,7 +2,7 @@ BIN_DIR		:= bin
 NAME		:= $(BIN_DIR)/ft_ping
 
 CXX			:= gcc
-CFLAGS		:= -Wall -Wextra -Werror -O2 -fsanitize=address,leak -g2
+CFLAGS		:= -Wall -Wextra -Werror -O2 # -fsanitize=address,leak -g2
 
 SRC			:= main.c parsing.c
 
