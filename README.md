@@ -71,21 +71,6 @@ Examples:
 ./bin/ft_ping -v -c 3 google.com
 ```
 
-## How It Works
-
-1. Parse CLI options and destination(s).
-2. Resolve destination with.
-3. Build an ICMP Echo Request packet:
-   - type = `ICMP_ECHO`
-   - id = current process id
-   - sequence = incrementing counter
-   - payload = simple incremental bytes
-4. Compute ICMP checksum.
-5. Send packet with `sendto`.
-6. Receive packets with `recvfrom` and keep only matching replies.
-7. Compute RTT from monotonic timestamps.
-8. Print summary statistics when done (or on `Ctrl+C`).
-
 ## Math Behind the Statistics
 
 ### 1) ICMP Checksum (RFC 1071)
@@ -132,16 +117,6 @@ $$
 \sigma = \sqrt{\frac{1}{N}\sum_{i=1}^{N} RTT_i^2 - \left(\overline{RTT}\right)^2}
 $$
 
-## Notes and Limitations
+# License
 
-- Current implementation targets IPv4 (`sockaddr_in`).
-- DNS resolution uses `gethostbyname`.
-- Raw sockets require elevated privileges or `CAP_NET_RAW`.
-
-## Cleaning
-
-```bash
-make clean   # remove object files
-make fclean  # remove object files and binary
-make re      # rebuild from scratch
-```
+This project is licensed under the [GPL v3](LICENSE)
